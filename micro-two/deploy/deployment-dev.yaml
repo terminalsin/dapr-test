@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micro-two
+  labels:
+    app: micro-two
+spec:
+  replicas: 1  # Single replica for development
+  selector:
+    matchLabels:
+      app: micro-two
+  template:
+    metadata:
+      labels:
+        app: micro-two
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "micro-two"
+        dapr.io/app-port: "8002"
+        dapr.io/log-level: "info"
+        dapr.io/config: "tracing"
+        dapr.io/enable-app-health-check: "true"
+        dapr.io/app-health-check-path: "/healthz"
+        dapr.io/app-health-probe-interval: "3"
+        dapr.io/app-health-probe-timeout: "200"
+        dapr.io/app-health-threshold: "2"
+    spec:
+      containers:
+      - name: micro-two
+        image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+        imagePullPolicy: IfNotPresent
+        workingDir: /app
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          set -e
+          echo "🚀 Starting micro-two in development mode..."
+          
+          # Install UV if not present
+          if ! command -v uv &> /dev/null; then
+            echo "📦 Installing UV..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          uv sync
+          
+          # Start the application with hot reload
+          echo "🔥 Starting with hot reload..."
+          uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8002 --reload
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: LOG_LEVEL
+          value: "DEBUG"
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: source-code
+          mountPath: /app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: source-code
+        hostPath:
+          path: /workspace/micro-two
+          type: Directory
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micro-two-config
+data:
+  config.yaml: |
+    service:
+      name: micro-two
+      port: 8002
+    logging:
+      level: DEBUG
+      format: json
+    dapr:
+      app_id: micro-two
+      app_port: 8002 

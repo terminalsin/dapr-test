@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micro-one
+  labels:
+    app: micro-one
+spec:
+  replicas: 1  # Single replica for development
+  selector:
+    matchLabels:
+      app: micro-one
+  template:
+    metadata:
+      labels:
+        app: micro-one
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "micro-one"
+        dapr.io/app-port: "8001"
+        dapr.io/log-level: "info"
+        dapr.io/config: "tracing"
+        dapr.io/enable-app-health-check: "true"
+        dapr.io/app-health-check-path: "/healthz"
+        dapr.io/app-health-probe-interval: "3"
+        dapr.io/app-health-probe-timeout: "200"
+        dapr.io/app-health-threshold: "2"
+    spec:
+      containers:
+      - name: micro-one
+        image: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+        imagePullPolicy: IfNotPresent
+        workingDir: /app
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          set -e
+          echo "🚀 Starting micro-one in development mode..."
+          
+          # Install UV if not present
+          if ! command -v uv &> /dev/null; then
+            echo "📦 Installing UV..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          uv sync
+          
+          # Start the application with hot reload
+          echo "🔥 Starting with hot reload..."
+          uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: LOG_LEVEL
+          value: "DEBUG"
+        - name: PYTHONPATH
+          value: "/app"
+        volumeMounts:
+        - name: source-code
+          mountPath: /app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: source-code
+        hostPath:
+          path: /workspace/micro-one
+          type: Directory
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micro-one-config
+data:
+  config.yaml: |
+    service:
+      name: micro-one
+      port: 8001
+    logging:
+      level: DEBUG
+      format: json
+    dapr:
+      app_id: micro-one
+      app_port: 8001 

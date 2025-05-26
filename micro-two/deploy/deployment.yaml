@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: micro-two
+  labels:
+    app: micro-two
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: micro-two
+  template:
+    metadata:
+      labels:
+        app: micro-two
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "micro-two"
+        dapr.io/app-port: "8002"
+        dapr.io/log-level: "info"
+        dapr.io/config: "tracing"
+    spec:
+      containers:
+      - name: micro-two
+        image: micro-two:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: micro-two-config
+data:
+  config.yaml: |
+    service:
+      name: micro-two
+      port: 8002
+    logging:
+      level: INFO
+      format: json
+    dapr:
+      app_id: micro-two
+      app_port: 8002 
